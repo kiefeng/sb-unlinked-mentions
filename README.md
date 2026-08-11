@@ -10,8 +10,8 @@ Each result includes:
 - A clickable link to the mentioning page
 - The alias that was matched (if different from the page name)
 - A context excerpt showing the surrounding text
-- A **`+` button** to convert that mention into a proper `[[wikilink]]`
-- A **"Link all"** button to batch-convert all visible results
+- A **`Link` button** to convert that mention into a proper `[[wikilink]]`
+- A **"Link All"** button to batch-convert all visible results
 
 ## Features
 
@@ -19,6 +19,7 @@ Each result includes:
 - 🔗 **One-click linking** — convert plain text mentions to `[[wikilinks]]`
 - 🛡️ **Safe replacement** — skips frontmatter, code blocks, inline code, existing links, and URLs
 - 🏷️ **Alias support** — reads `aliases` from frontmatter, preserves original text with `[[page|alias]]` syntax
+- 🚫 **Tag exclusion** — `#hashtag` mentions are never treated as unlinked mentions or converted
 - 📂 **Folder exclusion** — ignores Library/, System/, template/ by default
 - 📁 **Collapsible** — native `<details>` element, defaults to expanded
 - 🌏 **Chinese search** — works best with the [silversearch-chinese-tokenizer](https://github.com/LelouchHe/silversearch-chinese-tokenizer)
@@ -83,7 +84,7 @@ The substring verification is important because Silversearch uses fuzzy matching
 
 ## Linking safety
 
-The "link" button (`+`) only replaces the **first safe occurrence** in each page. It automatically skips:
+The `Link` button only replaces the **first safe occurrence** in each page. It automatically skips:
 
 - YAML frontmatter (between `---` markers)
 - Fenced code blocks (```` ``` ````)
