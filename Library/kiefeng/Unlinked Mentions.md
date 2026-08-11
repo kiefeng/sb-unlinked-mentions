@@ -28,32 +28,32 @@ share.mode: pull
   font-size: 0.85em;
   opacity: 0.6;
 }
-.sb-unlinked-linkall {
-  margin-left: auto;
-  font-size: 0.8em;
-  font-weight: normal;
-  padding: 2px 8px;
-  border: 1px solid var(--ui-accent-color, #888);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--ui-accent-color, #888);
-  cursor: pointer;
-  opacity: 0.7;
-}
-.sb-unlinked-linkall:hover {
-  opacity: 1;
-}
 .sb-unlinked-list {
   padding-top: 0.4rem;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 .sb-unlinked-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   font-size: 0.95em;
+  padding: 2px 0;
+}
+.sb-unlinked-cb {
+  margin-top: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.sb-unlinked-item-body {
+  flex: 1;
+  min-width: 0;
+}
+.sb-unlinked-item-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .sb-unlinked-link {
   cursor: pointer;
@@ -67,36 +67,44 @@ share.mode: pull
   font-size: 0.85em;
   opacity: 0.55;
 }
+.sb-unlinked-excerpt {
+  font-size: 0.85em;
+  opacity: 0.5;
+  border-left: 2px solid var(--ui-accent-color, #888);
+  padding: 1px 0 1px 8px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sb-unlinked-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+  margin-top: 4px;
+}
 .sb-unlinked-btn {
-  margin-left: auto;
-  font-size: 0.8em;
-  width: 22px;
-  height: 22px;
+  font-size: 0.85em;
+  padding: 3px 12px;
   border: 1px solid var(--ui-accent-color, #888);
   border-radius: 4px;
   background: transparent;
   color: var(--ui-accent-color, #888);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.5;
+  opacity: 0.7;
   transition: opacity 0.15s;
 }
 .sb-unlinked-btn:hover {
   opacity: 1;
 }
-.sb-unlinked-excerpt {
-  font-size: 0.85em;
-  opacity: 0.5;
-  padding-left: 4px;
-  border-left: 2px solid var(--ui-accent-color, #888);
-  margin-left: 2px;
-  padding: 2px 0 2px 8px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
+.sb-unlinked-btn-primary {
+  background: var(--ui-accent-color, #888);
+  color: var(--ui-background-color, #fff);
+  border-color: var(--ui-accent-color, #888);
+  opacity: 0.85;
+}
+.sb-unlinked-btn-primary:hover {
+  opacity: 1;
 }
 .sb-unlinked-more {
   font-size: 0.85em;
@@ -143,11 +151,6 @@ local function shouldExclude(pageName, excludeFolders)
   return false
 end
 
-local function ciFind(haystack, needle)
-  if not haystack or not needle then return false end
-  return string.find(string.lower(haystack), string.lower(needle), 1, true) ~= nil
-end
-
 local function getExcerptText(r)
   if r.excerpts and type(r.excerpts) == "table" and #r.excerpts > 0 then
     return r.excerpts[1].excerpt or ""
@@ -178,22 +181,28 @@ local function getAliases(pageText)
   return terms
 end
 
--- ============ 安全文本替换 ============
+-- ============ 安全位置检测 ============
 
--- 判断位置是否在安全的纯文本区域（不在双链、行内代码、Markdown 链接 URL 中）
+-- 判断某行中 startPos 位置是否是安全的纯文本区域
+-- 安全 = 不在双链内、不在行内代码内、不在 Markdown 链接 URL 内、不是标签（# 前缀）
 local function isSafePosition(line, startPos)
   local before = string.sub(line, 1, startPos - 1)
 
-  -- 检查是否在 [[...]] 内
+  -- 前面紧跟 # 说明是标签，不算纯文本提及
+  if #before > 0 and string.sub(before, -1) == "#" then
+    return false
+  end
+
+  -- 在 [[...]] 内
   local openCount = select(2, string.gsub(before, "%[%[", ""))
   local closeCount = select(2, string.gsub(before, "%]%]", ""))
   if openCount > closeCount then return false end
 
-  -- 检查是否在行内代码内（反引号数量为奇数）
+  -- 在行内代码内（反引号未配对）
   local backtickCount = select(2, string.gsub(before, "`", ""))
   if backtickCount % 2 == 1 then return false end
 
-  -- 检查是否在 Markdown 链接的 URL 部分 [text](url)
+  -- 在 Markdown 链接的 URL 部分 [text](url)
   local lastOpenParen = string.find(before, "%([^%)]*$")
   if lastOpenParen then
     local beforeParen = string.sub(before, 1, lastOpenParen - 1)
@@ -203,34 +212,44 @@ local function isSafePosition(line, startPos)
   return true
 end
 
--- 在一行中找到第一个安全的 term 出现位置并替换
-local function replaceInLine(line, term, targetPage)
+-- 在全文中查找第一处安全的 term 出现，返回 (lineText, lineNum, startPos, endPos)
+-- 跳过 frontmatter 和代码块
+local function findFirstSafeMention(content, term)
   local termLower = string.lower(term)
-  local lineLower = string.lower(line)
-  local searchPos = 1
+  local inFrontmatter = false
+  local frontmatterDone = false
+  local inCodeBlock = false
+  local lineNum = 0
 
-  while true do
-    local startPos, endPos = string.find(lineLower, termLower, searchPos, true)
-    if not startPos then break end
+  for line in string.gmatch(content, "([^\r\n]*)\r?\n?") do
+    lineNum = lineNum + 1
 
-    if isSafePosition(line, startPos) then
-      local actualText = string.sub(line, startPos, endPos)
-      local replacement
-      if actualText == targetPage then
-        replacement = "[[" .. targetPage .. "]]"
-      else
-        replacement = "[[" .. targetPage .. "|" .. actualText .. "]]"
+    if not frontmatterDone and string.match(line, "^---%s*$") then
+      inFrontmatter = not inFrontmatter
+      if not inFrontmatter then frontmatterDone = true end
+    elseif inFrontmatter then
+      -- skip
+    elseif string.match(line, "^```") then
+      inCodeBlock = not inCodeBlock
+    elseif not inCodeBlock then
+      local lineLower = string.lower(line)
+      local searchPos = 1
+      while true do
+        local s, e = string.find(lineLower, termLower, searchPos, true)
+        if not s then break end
+        if isSafePosition(line, s) then
+          return line, lineNum, s, e
+        end
+        searchPos = e + 1
       end
-      return string.sub(line, 1, startPos - 1) .. replacement .. string.sub(line, endPos + 1), true
     end
-
-    searchPos = endPos + 1
   end
-
-  return line, false
+  return nil
 end
 
--- 在完整页面内容中替换第一处安全提及
+-- ============ 文本替换 ============
+
+-- 将 content 中第一处安全的 term 替换为双链
 local function replaceFirstMention(content, term, targetPage)
   local lines = {}
   local inFrontmatter = false
@@ -239,10 +258,6 @@ local function replaceFirstMention(content, term, targetPage)
   local replaced = false
 
   for line in string.gmatch(content, "([^\r\n]*)\r?\n?") do
-    if line == "" and #lines == 0 then
-      -- skip leading empty
-    end
-
     if not replaced then
       if not frontmatterDone and string.match(line, "^---%s*$") then
         if not inFrontmatter then
@@ -260,8 +275,29 @@ local function replaceFirstMention(content, term, targetPage)
       elseif inCodeBlock then
         table.insert(lines, line)
       else
-        local newLine, didReplace = replaceInLine(line, term, targetPage)
-        if didReplace then replaced = true end
+        local termLower = string.lower(term)
+        local lineLower = string.lower(line)
+        local searchPos = 1
+        local newLine = line
+
+        while true do
+          local s, e = string.find(lineLower, termLower, searchPos, true)
+          if not s then break end
+          if isSafePosition(newLine, s) then
+            local actualText = string.sub(newLine, s, e)
+            local replacement
+            if actualText == targetPage then
+              replacement = "[[" .. targetPage .. "]]"
+            else
+              replacement = "[[" .. targetPage .. "|" .. actualText .. "]]"
+            end
+            newLine = string.sub(newLine, 1, s - 1) .. replacement .. string.sub(newLine, e + 1)
+            replaced = true
+            break
+          end
+          searchPos = e + 1
+        end
+
         table.insert(lines, newLine)
       end
     else
@@ -282,7 +318,7 @@ local function linkMention(sourcePage, targetPage, term)
 
   local newContent, didReplace = replaceFirstMention(content, term, targetPage)
   if not didReplace then
-    editor.flashNotification("未找到可安全替换的提及（可能在代码块或已有链接中）")
+    editor.flashNotification("未找到可安全替换的提及")
     return false
   end
 
@@ -296,10 +332,10 @@ local function linkMention(sourcePage, targetPage, term)
   return true
 end
 
--- 批量转正所有可见结果
-local function linkAllMentions(results, targetPage)
+-- 批量转正
+local function linkMentions(resultList, targetPage)
   local linked = 0
-  for _, r in ipairs(results) do
+  for _, r in ipairs(resultList) do
     local ok, content = pcall(space.readPage, r.id)
     if ok and content then
       local newContent, didReplace = replaceFirstMention(content, r.term, targetPage)
@@ -309,7 +345,11 @@ local function linkAllMentions(results, targetPage)
       end
     end
   end
-  editor.flashNotification("已将 " .. linked .. " 处提及转为双链")
+  if linked > 0 then
+    editor.flashNotification("已将 " .. linked .. " 处提及转为双链")
+  else
+    editor.flashNotification("没有可转换的提及")
+  end
 end
 
 -- ============ 搜索逻辑 ============
@@ -333,6 +373,7 @@ local function searchUnlinked(pageName, options)
   end
   if #validTerms == 0 then return {} end
 
+  -- 已链接的页面集合
   local linkedSet = {}
   local linkedMentions = query[[
     from l = index.tag "link"
@@ -361,26 +402,22 @@ local function searchUnlinked(pageName, options)
           and not seenPages[rId]
           and not shouldExclude(rId, excludeFolders) then
 
-          local confirmed = false
-          local excerptText = getExcerptText(r)
-
-          if ciFind(excerptText, term) then
-            confirmed = true
-          else
-            local readOk, pageContent = pcall(space.readPage, rId)
-            if readOk and pageContent and ciFind(pageContent, term) then
-              confirmed = true
+          -- 用 findFirstSafeMention 验证：
+          -- 1) 排除标签（# 前缀）
+          -- 2) 排除代码块/frontmatter
+          -- 3) 排除已有双链内
+          local readOk, pageContent = pcall(space.readPage, rId)
+          if readOk and pageContent then
+            local safeLine = findFirstSafeMention(pageContent, term)
+            if safeLine then
+              seenPages[rId] = true
+              table.insert(results, {
+                id = rId,
+                score = r.score or 0,
+                term = term,
+                excerpt = getExcerptText(r)
+              })
             end
-          end
-
-          if confirmed then
-            seenPages[rId] = true
-            table.insert(results, {
-              id = rId,
-              score = r.score or 0,
-              term = term,
-              excerpt = excerptText
-            })
           end
         end
       end
@@ -408,16 +445,25 @@ function widgets.unlinkedMentions(pageName)
   local hiddenCount = #results - visible
   local defaultOpen = options.defaultOpen ~= false
 
-  -- 构建每条结果的 DOM
-  local itemNodes = {}
+  -- 选中状态（闭包 upvalue）
+  local selected = {}
   local visibleResults = {}
+
+  local itemNodes = {}
 
   for i = 1, visible do
     local r = results[i]
     table.insert(visibleResults, r)
 
-    -- 行：页面链接 + 别名标注 + 转正按钮
-    local rowChildren = {
+    -- checkbox + 链接 + 别名
+    local headChildren = {
+      dom.input {
+        type = "checkbox",
+        class = "sb-unlinked-cb",
+        onclick = function()
+          selected[r.id] = not selected[r.id]
+        end
+      },
       dom.a {
         class = "sb-unlinked-link",
         onclick = function() editor.navigate({ page = r.id }) end,
@@ -426,25 +472,20 @@ function widgets.unlinkedMentions(pageName)
     }
 
     if r.term ~= pageName then
-      table.insert(rowChildren, dom.span {
+      table.insert(headChildren, dom.span {
         class = "sb-unlinked-term",
         '("' .. r.term .. '")'
       })
     end
 
-    table.insert(rowChildren, dom.button {
-      class = "sb-unlinked-btn",
-      title = "将第一处提及转为双链",
-      onclick = function() linkMention(r.id, pageName, r.term) end,
-      "+"
-    })
+    local bodyChildren = {
+      dom.div {
+        class = "sb-unlinked-item-head",
+        table.unpack(headChildren)
+      }
+    }
 
-    table.insert(itemNodes, dom.div {
-      class = "sb-unlinked-item",
-      table.unpack(rowChildren)
-    })
-
-    -- 摘要片段
+    -- 摘要
     if r.excerpt and #r.excerpt > 0 then
       local snippet = string.gsub(r.excerpt, "\n", " ")
       snippet = string.gsub(snippet, "%s+", " ")
@@ -453,12 +494,20 @@ function widgets.unlinkedMentions(pageName)
         snippet = string.sub(snippet, 1, 117) .. "..."
       end
       if #snippet > 0 then
-        table.insert(itemNodes, dom.div {
+        table.insert(bodyChildren, dom.div {
           class = "sb-unlinked-excerpt",
           snippet
         })
       end
     end
+
+    table.insert(itemNodes, dom.div {
+      class = "sb-unlinked-item",
+      dom.div {
+        class = "sb-unlinked-item-body",
+        table.unpack(bodyChildren)
+      }
+    })
   end
 
   if hiddenCount > 0 then
@@ -468,11 +517,26 @@ function widgets.unlinkedMentions(pageName)
     })
   end
 
-  -- 全部链接按钮
-  table.insert(itemNodes, dom.button {
-    class = "sb-unlinked-linkall",
-    onclick = function() linkAllMentions(visibleResults, pageName) end,
-    "全部链接（" .. visible .. "）"
+  -- 底部操作栏：单个按钮
+  -- 勾选了就转选中的，没勾选就转全部
+  table.insert(itemNodes, dom.div {
+    class = "sb-unlinked-actions",
+    dom.button {
+      class = "sb-unlinked-btn sb-unlinked-btn-primary",
+      title = "勾选后只转选中项；不勾选则转全部",
+      onclick = function()
+        local picked = {}
+        for _, r in ipairs(visibleResults) do
+          if selected[r.id] then table.insert(picked, r) end
+        end
+        if #picked > 0 then
+          linkMentions(picked, pageName)
+        else
+          linkMentions(visibleResults, pageName)
+        end
+      end,
+      "Link"
+    }
   })
 
   return widget.new {
@@ -513,15 +577,16 @@ config.set("std.widgets.unlinkedMentions", {
   enabled = true,
   maxResults = 30,
   minTermLength = 2,
-  defaultOpen = true,       -- 默认展开，设为 false 默认折叠
+  defaultOpen = true,
   excludeFolders = {"Library/", "System/", "template/", "Template/"}
 })
 ```
 
 ## 功能说明
 
-- **折叠**：点击标题栏展开/收起，默认展开
-- **+ 按钮**：将该页面中第一处安全的纯文本提及转为 `[[双链]]`
-- **全部链接**：批量将所有可见结果的第一处提及转为双链
-- **安全替换**：自动跳过 frontmatter、代码块、行内代码、已有 `[[双链]]`、Markdown 链接 URL
-- **别名支持**：如果命中的是别名，替换为 `[[真实页面名|别名原文]]`
+- **折叠**：点击标题栏展开/收起
+- **勾选转换**：勾选若干页面后点 Link，只转选中的；不勾选则转全部
+- **全选**：一键勾选/取消所有可见结果
+- **标签排除**：`#标签` 中的页面名不会被识别为未链接提及，也不会被转换
+- **安全替换**：跳过 frontmatter、代码块、行内代码、已有双链、Markdown 链接 URL
+- **别名支持**：命中别名时替换为 `[[真实页面名|别名原文]]`
