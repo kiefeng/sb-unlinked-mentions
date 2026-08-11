@@ -45,6 +45,15 @@ share.mode: pull
   margin-top: 3px;
   cursor: pointer;
   flex-shrink: 0;
+  pointer-events: auto;
+  accent-color: var(--ui-accent-color, #888);
+}
+.sb-unlinked-item:has(.sb-unlinked-cb:checked) {
+  background: color-mix(in srgb, var(--ui-accent-color, #888) 12%, transparent);
+  border-radius: 4px;
+}
+.sb-unlinked-item:has(.sb-unlinked-cb:checked) .sb-unlinked-link {
+  font-weight: 600;
 }
 .sb-unlinked-item-body {
   flex: 1;
@@ -445,23 +454,41 @@ function widgets.unlinkedMentions(pageName)
   local hiddenCount = #results - visible
   local defaultOpen = options.defaultOpen ~= false
 
-  -- 选中状态（闭包 upvalue）
-  local selected = {}
+  local selected = {}          -- pageId -> result
   local visibleResults = {}
-
   local itemNodes = {}
+
+  -- 更新按钮文本：根据勾选数量动态变化
+  local function updateButton(e, total)
+    local container = e.target:closest(".sb-unlinked")
+    if not container then return end
+    local btn = container:querySelector(".sb-unlinked-apply")
+    if not btn then return end
+    local count = 0
+    for _ in pairs(selected) do count = count + 1 end
+    if count > 0 then
+      btn.textContent = "Link Selected (" .. count .. ")"
+    else
+      btn.textContent = "Link All (" .. total .. ")"
+    end
+  end
 
   for i = 1, visible do
     local r = results[i]
     table.insert(visibleResults, r)
 
-    -- checkbox + 链接 + 别名
     local headChildren = {
       dom.input {
         type = "checkbox",
         class = "sb-unlinked-cb",
-        onclick = function()
-          selected[r.id] = not selected[r.id]
+        ["data-page"] = r.id,
+        onchange = function(e)
+          if e.target.checked then
+            selected[r.id] = r
+          else
+            selected[r.id] = nil
+          end
+          updateButton(e, #visibleResults)
         end
       },
       dom.a {
@@ -485,7 +512,6 @@ function widgets.unlinkedMentions(pageName)
       }
     }
 
-    -- 摘要
     if r.excerpt and #r.excerpt > 0 then
       local snippet = string.gsub(r.excerpt, "\n", " ")
       snippet = string.gsub(snippet, "%s+", " ")
@@ -517,17 +543,16 @@ function widgets.unlinkedMentions(pageName)
     })
   end
 
-  -- 底部操作栏：单个按钮
-  -- 勾选了就转选中的，没勾选就转全部
+  -- 底部操作栏：单个按钮，文本随勾选状态变化
   table.insert(itemNodes, dom.div {
     class = "sb-unlinked-actions",
     dom.button {
-      class = "sb-unlinked-btn sb-unlinked-btn-primary",
+      class = "sb-unlinked-btn sb-unlinked-btn-primary sb-unlinked-apply",
       title = "勾选后只转选中项；不勾选则转全部",
       onclick = function()
         local picked = {}
-        for _, r in ipairs(visibleResults) do
-          if selected[r.id] then table.insert(picked, r) end
+        for _, r in pairs(selected) do
+          table.insert(picked, r)
         end
         if #picked > 0 then
           linkMentions(picked, pageName)
@@ -535,7 +560,7 @@ function widgets.unlinkedMentions(pageName)
           linkMentions(visibleResults, pageName)
         end
       end,
-      "Link"
+      "Link All (" .. visible .. ")"
     }
   })
 
@@ -586,7 +611,6 @@ config.set("std.widgets.unlinkedMentions", {
 
 - **折叠**：点击标题栏展开/收起
 - **勾选转换**：勾选若干页面后点 Link，只转选中的；不勾选则转全部
-- **全选**：一键勾选/取消所有可见结果
 - **标签排除**：`#标签` 中的页面名不会被识别为未链接提及，也不会被转换
 - **安全替换**：跳过 frontmatter、代码块、行内代码、已有双链、Markdown 链接 URL
 - **别名支持**：命中别名时替换为 `[[真实页面名|别名原文]]`
