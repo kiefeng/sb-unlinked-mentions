@@ -2,8 +2,6 @@
 
 A [SilverBullet](https://silverbullet.md) plug that displays **unlinked mentions** (also known as "potential links" or "linked references without links") at the bottom of your pages, similar to Obsidian's Unlinked Mentions panel.
 
-![Screenshot](docs/screenshot.png)
-
 ## What it does
 
 When viewing a page, the widget searches your entire space for pages that mention the current page's name (or its aliases) in plain text but **don't** have a `[[wikilink]]` to it. It then shows them in a collapsible section below the built-in Linked Mentions.

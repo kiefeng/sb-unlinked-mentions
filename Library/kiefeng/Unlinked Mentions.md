@@ -1,7 +1,7 @@
 ---
 name: Library/kiefeng/Unlinked Mentions
 tags: meta/library
-share.uri: "ghr:kiefeng/sb-unlinked-mentions/main/Library/kiefeng/Unlinked%20Mentions.md"
+share.uri: "ghr:kiefeng/sb-unlinked-mentions@main/Library/kiefeng/Unlinked Mentions.md"
 share.mode: pull
 ---
 
