@@ -34,15 +34,18 @@ For Chinese-language spaces, also install:
 
 ## Installation
 
-1. Download [`Library/kiefeng/Unlinked Mentions.md`](Library/kiefeng/Unlinked%20Mentions.md) from this repository
-2. Place it in your SilverBullet space under `Library/kiefeng/Unlinked Mentions.md`
-3. Reload SilverBullet (Ctrl+Shift+R)
+### Option A: Manual (simplest)
 
-The widget will automatically appear at the bottom of pages that have unlinked mentions.
+1. Download [`Unlinked Mentions.md`](https://github.com/kiefeng/sb-unlinked-mentions/blob/main/Library/kiefeng/Unlinked%20Mentions.md) from this repository
+2. Place it anywhere in your SilverBullet space as a `.md` file (e.g. `Library/Unlinked Mentions.md` or any folder you prefer)
+3. If you place it somewhere other than `Library/kiefeng/Unlinked Mentions.md`, update the `name` field in the file's frontmatter to match its actual path
+4. Reload SilverBullet (Ctrl+Shift+R)
 
-### Or via Library Manager (if available)
+The widget automatically appears at the bottom of pages that have unlinked mentions.
 
-Add this repository as a library source, then install through the Configuration Manager.
+### Option B: Library Manager
+
+If you use the [Configuration Manager](https://silverbullet.md/Library%20Manager), add this repository as a library source and install from there. The file will be placed automatically under `Library/kiefeng/`.
 
 ## Configuration
 
