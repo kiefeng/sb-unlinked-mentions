@@ -7,6 +7,104 @@ share.mode: pull
 
 # Unlinked Mentions Widget
 
+```space-style
+/* 折叠容器 */
+.sb-unlinked {
+  margin-top: 0.5rem;
+}
+/* 折叠标题：隐藏箭头，标题按 H1 原样渲染（与 Linked Mentions 一致） */
+.sb-unlinked-summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: block;
+  padding: 0;
+}
+.sb-unlinked-summary::-webkit-details-marker {
+  display: none;
+}
+/* H1 清零默认 margin，收紧 line-height，让标题背景与框体上缘对齐 */
+.sb-unlinked-summary h1 {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.2 !important;
+}
+.sb-unlinked-summary:hover {
+  opacity: 0.85;
+}
+.sb-unlinked-count {
+  font-weight: normal;
+  font-size: 0.5em;
+  opacity: 0.55;
+}
+.sb-unlinked-content {
+  padding: 2px 0 6px 0;
+}
+.sb-unlinked-item {
+  padding: 7px 0;
+}
+.sb-unlinked-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.6;
+}
+.sb-unlinked-link {
+  color: var(--ui-link-color, var(--ui-accent-color, #58a6ff));
+  font-weight: bold;
+  text-decoration: none;
+  cursor: pointer;
+}
+.sb-unlinked-link:hover {
+  text-decoration: underline;
+}
+.sb-unlinked-term {
+  opacity: 0.55;
+  font-size: 0.9em;
+}
+.sb-unlinked-one {
+  font-size: 0.85em;
+  padding: 0 6px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: var(--ui-accent-color, #888);
+  opacity: 0.5;
+}
+.sb-unlinked-one:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+.sb-unlinked-excerpt {
+  font-size: 0.9em;
+  line-height: 1.5;
+  opacity: 0.7;
+  padding-left: 4px;
+  margin-top: 3px;
+}
+.sb-unlinked-actions {
+  padding-top: 6px;
+}
+.sb-unlinked-btn {
+  font-size: 0.88em;
+  padding: 2px 10px;
+  cursor: pointer;
+  background: none;
+  border: 1px solid var(--ui-accent-color, #888);
+  border-radius: 3px;
+  color: var(--ui-accent-color, #888);
+  opacity: 0.6;
+}
+.sb-unlinked-btn:hover {
+  opacity: 1;
+}
+.sb-unlinked-more {
+  font-size: 0.85em;
+  opacity: 0.5;
+  padding: 2px 0;
+}
+```
+
 ```space-lua
 -- priority: 10
 widgets = widgets or {}
@@ -72,55 +170,38 @@ end
 
 local function isSafePosition(line, startPos)
   local before = string.sub(line, 1, startPos - 1)
-
-  -- Preceded by # means hashtag
-  if #before > 0 and string.sub(before, -1) == "#" then
-    return false
-  end
-
-  -- Inside [[...]]
+  if #before > 0 and string.sub(before, -1) == "#" then return false end
   local openCount = select(2, string.gsub(before, "%[%[", ""))
   local closeCount = select(2, string.gsub(before, "%]%]", ""))
   if openCount > closeCount then return false end
-
-  -- Inside inline code
   local backtickCount = select(2, string.gsub(before, "`", ""))
   if backtickCount % 2 == 1 then return false end
-
-  -- Inside markdown link URL [text](url)
   local lastOpenParen = string.find(before, "%([^%)]*$")
   if lastOpenParen then
     local beforeParen = string.sub(before, 1, lastOpenParen - 1)
     if string.find(beforeParen, "%[[^%]]*$") then return false end
   end
-
   return true
 end
 
--- Find the first safe mention line and return (lineText, startPos, endPos)
 local function findFirstSafeMention(content, term)
   local termLower = string.lower(term)
   local inFrontmatter = false
   local frontmatterDone = false
   local inCodeBlock = false
-
   for line in string.gmatch(content, "([^\r\n]*)\r?\n?") do
     if not frontmatterDone and string.match(line, "^---%s*$") then
       inFrontmatter = not inFrontmatter
       if not inFrontmatter then frontmatterDone = true end
-    elseif inFrontmatter then
-      -- skip
-    elseif string.match(line, "^```") then
+    elseif not inFrontmatter and string.match(line, "^```") then
       inCodeBlock = not inCodeBlock
-    elseif not inCodeBlock then
+    elseif not inFrontmatter and not inCodeBlock then
       local lineLower = string.lower(line)
       local searchPos = 1
       while true do
         local s, e = string.find(lineLower, termLower, searchPos, true)
         if not s then break end
-        if isSafePosition(line, s) then
-          return line, s, e
-        end
+        if isSafePosition(line, s) then return line, s, e end
         searchPos = e + 1
       end
     end
@@ -128,14 +209,49 @@ local function findFirstSafeMention(content, term)
   return nil
 end
 
--- Extract context snippet around the matched term
-local function extractSnippet(line, startPos, endPos, contextLen)
-  contextLen = contextLen or 100
+-- 递归提取语法树中的纯文本（官方解析器保证，不依赖正则）
+local function treeToText(node)
+  if not node then return "" end
+  -- 跳过纯标记节点：[[ ]] 括号、标题 #、引用 > 等，只保留有意义文本
+  if node.type == "WikiLinkMark"
+    or node.type == "HeaderMark"
+    or node.type == "QuoteMark"
+    or node.type == "ListItemMark"
+    or node.type == "EmphasisMark"
+    or node.type == "CodeMark"
+    or node.type == "LinkMark"
+    or node.type == "URLMark"
+    or node.type == "TaskMark"
+    or node.type == "CheckboxMark" then
+    return ""
+  end
+  if node.type == nil then
+    -- 文本节点
+    return node.text or ""
+  end
+  if node.children then
+    local parts = {}
+    for _, child in ipairs(node.children) do
+      table.insert(parts, treeToText(child))
+    end
+    return table.concat(parts)
+  end
+  return ""
+end
+
+local function extractSnippet(line, startPos, endPos)
+  local contextLen = 100
   local lineStart = math.max(1, startPos - contextLen)
   local lineEnd = math.min(#line, endPos + contextLen)
   local snippet = string.sub(line, lineStart, lineEnd)
   if lineStart > 1 then snippet = "..." .. snippet end
   if lineEnd < #line then snippet = snippet .. "..." end
+  -- 用官方 markdown 解析器把 snippet 转纯文本：
+  -- # 标题、**粗体**、[[链接]]、[text](url) 等全部剥掉，只留文字
+  local ok, tree = pcall(markdown.parseMarkdown, snippet)
+  if ok and tree then
+    snippet = treeToText(tree)
+  end
   return snippet
 end
 
@@ -147,16 +263,11 @@ local function replaceFirstMention(content, term, targetPage)
   local frontmatterDone = false
   local inCodeBlock = false
   local replaced = false
-
   for line in string.gmatch(content, "([^\r\n]*)\r?\n?") do
     if not replaced then
       if not frontmatterDone and string.match(line, "^---%s*$") then
-        if not inFrontmatter then
-          inFrontmatter = true
-        else
-          inFrontmatter = false
-          frontmatterDone = true
-        end
+        if not inFrontmatter then inFrontmatter = true
+        else inFrontmatter = false; frontmatterDone = true end
         table.insert(lines, line)
       elseif inFrontmatter then
         table.insert(lines, line)
@@ -170,7 +281,6 @@ local function replaceFirstMention(content, term, targetPage)
         local lineLower = string.lower(line)
         local searchPos = 1
         local newLine = line
-
         while true do
           local s, e = string.find(lineLower, termLower, searchPos, true)
           if not s then break end
@@ -188,14 +298,12 @@ local function replaceFirstMention(content, term, targetPage)
           end
           searchPos = e + 1
         end
-
         table.insert(lines, newLine)
       end
     else
       table.insert(lines, line)
     end
   end
-
   return table.concat(lines, "\n"), replaced
 end
 
@@ -205,13 +313,11 @@ local function linkMention(sourcePage, targetPage, term)
     editor.flashNotification("Failed to read page: " .. sourcePage)
     return
   end
-
   local newContent, didReplace = replaceFirstMention(content, term, targetPage)
   if not didReplace then
     editor.flashNotification("No safe mention found to convert")
     return
   end
-
   pcall(space.writePage, sourcePage, newContent)
   editor.flashNotification("Linked: " .. sourcePage)
 end
@@ -239,12 +345,9 @@ end
 
 local function searchUnlinked(pageName, options)
   local minTermLength = options.minTermLength or 2
-
   local terms = {pageName}
   local pageText = editor.getText()
-  for _, alias in ipairs(getAliases(pageText)) do
-    table.insert(terms, alias)
-  end
+  for _, alias in ipairs(getAliases(pageText)) do table.insert(terms, alias) end
 
   local seenTerms = {}
   local validTerms = {}
@@ -273,17 +376,12 @@ local function searchUnlinked(pageName, options)
     local ok, searchResults = pcall(function()
       return silversearch.search(term, { silent = true })
     end)
-
     if ok and searchResults then
       searchOk = true
       for _, r in ipairs(searchResults) do
         local rId = r.name or r.id
-        if rId
-          and rId ~= pageName
-          and not linkedSet[rId]
-          and not seenPages[rId]
-          and not shouldExclude(rId, excludeFolders) then
-
+        if rId and rId ~= pageName and not linkedSet[rId]
+          and not seenPages[rId] and not shouldExclude(rId, excludeFolders) then
           local readOk, pageContent = pcall(space.readPage, rId)
           if readOk and pageContent then
             local line, s, e = findFirstSafeMention(pageContent, term)
@@ -303,7 +401,6 @@ local function searchUnlinked(pageName, options)
   end
 
   if not searchOk then return {} end
-
   table.sort(results, function(a, b) return a.score > b.score end)
   return results
 end
@@ -316,9 +413,7 @@ function widgets.unlinkedMentions(pageName)
   if not options or not options.enabled then return nil end
 
   local excludeFolders = options.excludeFolders or {}
-  if shouldExclude(pageName, excludeFolders) then
-    return nil
-  end
+  if shouldExclude(pageName, excludeFolders) then return nil end
 
   local results = searchUnlinked(pageName, options)
   if #results == 0 then return nil end
@@ -335,69 +430,81 @@ function widgets.unlinkedMentions(pageName)
     local r = results[i]
     table.insert(visibleResults, r)
 
-    -- Title row: **[[Page Name]]** (alias)  Link
-    local titleChildren = {
-      dom.strong {
-        dom.a {
-          onclick = function() editor.navigate({ page = r.id }) end,
-          style = "cursor: pointer; color: var(--ui-link-color, var(--ui-accent-color)); text-decoration: none;",
-          r.id
-        }
+    local headChildren = {
+      dom.a {
+        class = "sb-unlinked-link",
+        onclick = function() editor.navigate({ page = r.id }) end,
+        r.id
       }
     }
 
     if r.term ~= pageName then
-      table.insert(titleChildren, ' ("' .. r.term .. '")')
+      table.insert(headChildren, dom.span {
+        class = "sb-unlinked-term",
+        '("' .. r.term .. '")'
+      })
     end
 
-    table.insert(titleChildren, "  ")
-    table.insert(titleChildren, dom.a {
+    table.insert(headChildren, dom.button {
+      class = "sb-unlinked-one",
+      title = "Convert first safe mention to wikilink",
       onclick = function() linkMention(r.id, pageName, r.term) end,
-      style = "font-size: 0.85em; opacity: 0.5; cursor: pointer; color: var(--ui-link-color, var(--ui-accent-color)); text-decoration: none;",
       "Link"
     })
 
-    table.insert(itemNodes, dom.p(titleChildren))
+    local itemChildren = {
+      dom.div {
+        class = "sb-unlinked-item-head",
+        table.unpack(headChildren)
+      }
+    }
 
-    -- Snippet paragraph
     if r.snippet and #r.snippet > 0 then
-      table.insert(itemNodes, dom.p {
-        style = "opacity: 0.6; font-size: 0.9em; margin: 0 0 0.5em 0;",
-        r.snippet
+      table.insert(itemChildren, dom.div {
+        class = "sb-unlinked-excerpt",
+        __rawText = r.snippet
       })
     end
+
+    table.insert(itemNodes, dom.div {
+      class = "sb-unlinked-item",
+      table.unpack(itemChildren)
+    })
   end
 
   if hiddenCount > 0 then
-    table.insert(itemNodes, dom.p {
-      style = "opacity: 0.5; font-size: 0.9em;",
+    table.insert(itemNodes, dom.div {
+      class = "sb-unlinked-more",
       "...and " .. hiddenCount .. " more"
     })
   end
 
-  -- Link All
-  table.insert(itemNodes, dom.p {
-    dom.a {
+  table.insert(itemNodes, dom.div {
+    class = "sb-unlinked-actions",
+    dom.button {
+      class = "sb-unlinked-btn",
+      title = "Convert all visible mentions to wikilinks",
       onclick = function() linkMentions(visibleResults, pageName) end,
-      style = "font-size: 0.9em; opacity: 0.6; cursor: pointer; color: var(--ui-link-color, var(--ui-accent-color)); text-decoration: none;",
       "Link All (" .. visible .. ")"
     }
   })
 
   return widget.new {
     html = dom.details {
+      class = "sb-unlinked",
       open = defaultOpen,
       dom.summary {
-        style = "cursor: pointer; font-weight: bold; font-size: 1.1em; margin-bottom: 0.3em;",
-        "Unlinked Mentions (", tostring(#results), ")"
+        class = "sb-unlinked-summary",
+        "# Unlinked Mentions (" .. tostring(#results) .. ")",
       },
-      table.unpack(itemNodes)
+      dom.div {
+        class = "sb-unlinked-content",
+        table.unpack(itemNodes)
+      }
     },
     display = "block"
   }
 end
-
--- ============ Mount ============
 
 event.listen {
   name = "hooks:renderBottomWidgets",
