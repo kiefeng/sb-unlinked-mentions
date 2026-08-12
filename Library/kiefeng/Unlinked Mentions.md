@@ -117,6 +117,7 @@ config.define("unlinkedMentions", {
     maxResults = schema.number(),
     minTermLength = schema.number(),
     defaultOpen = schema.boolean(),
+    contextLen = schema.number(),
     excludeFolders = schema.array("string"),
   }
 })
@@ -126,56 +127,9 @@ config.set("unlinkedMentions", {
   maxResults = 30,
   minTermLength = 2,
   defaultOpen = true,
+  contextLen = 100,
   excludeFolders = {"Library/", "System/", "template/", "Template/"}
 })
-
--- ============ Commands ============
-
--- Convert ALL unlinked mentions on the current page (not limited by maxResults)
--- with a confirmation prompt, since this modifies multiple pages at once
-pcall(function()
-  command.define {
-    name = "Unlinked Mentions: Link All",
-    description = "Convert every unlinked mention on this page to a wikilink (modifies multiple pages)",
-    run = function()
-      local pageName = editor.getCurrentPage()
-      local options = config.get("unlinkedMentions")
-      if not options or not options.enabled then return end
-
-      local results = searchUnlinked(pageName, options)
-      if #results == 0 then
-        editor.flashNotification("No unlinked mentions found")
-        return
-      end
-
-      -- Confirm before bulk-modifying pages
-      local confirmed = editor.confirm(
-        "Convert ALL " .. #results .. " unlinked mentions to wikilinks?\n\nThis will modify " .. #results .. " page(s). Use with care."
-      )
-      if not confirmed then
-        editor.flashNotification("Cancelled")
-        return
-      end
-
-      local linked = 0
-      for _, r in ipairs(results) do
-        local ok, content = pcall(space.readPage, r.id)
-        if ok and content then
-          local newContent, didReplace = replaceFirstMention(content, r.term, pageName)
-          if didReplace then
-            pcall(space.writePage, r.id, newContent)
-            linked = linked + 1
-          end
-        end
-      end
-      if linked > 0 then
-        editor.flashNotification("Converted " .. linked .. " of " .. #results .. " mentions")
-      else
-        editor.flashNotification("No mentions could be converted")
-      end
-    end
-  }
-end)
 
 -- ============ Helpers ============
 
@@ -287,8 +241,8 @@ local function treeToText(node)
   return ""
 end
 
-local function extractSnippet(line, startPos, endPos)
-  local contextLen = 100
+local function extractSnippet(line, startPos, endPos, contextLen)
+  contextLen = contextLen or 100
   local lineStart = math.max(1, startPos - contextLen)
   local lineEnd = math.min(#line, endPos + contextLen)
   local snippet = string.sub(line, lineStart, lineEnd)
@@ -363,7 +317,13 @@ local function linkMention(sourcePage, targetPage, term)
   end
   local newContent, didReplace = replaceFirstMention(content, term, targetPage)
   if not didReplace then
-    editor.flashNotification("No safe mention found to convert")
+    -- 区分：页面里有没有这个提及？有但都在不安全位置？
+    local hasMention = string.find(string.lower(content), string.lower(term), 1, true) ~= nil
+    if hasMention then
+      editor.flashNotification("Mention found but only in unsafe locations (code/link/frontmatter)")
+    else
+      editor.flashNotification("No mention of \"" .. term .. "\" in page")
+    end
     return
   end
   pcall(space.writePage, sourcePage, newContent)
@@ -391,10 +351,14 @@ end
 
 -- ============ Search ============
 
-local function searchUnlinked(pageName, options)
+local function searchUnlinked(pageName, options, pageText)
   local minTermLength = options.minTermLength or 2
   local terms = {pageName}
-  local pageText = editor.getText()
+  -- pageText 参数：widget 渲染时传 nil（用当前编辑器文本），
+  -- 全库命令时传 space.readPage(pageName) 的文本（保证 aliases 属于被遍历的页面）
+  if not pageText then
+    pageText = editor.getText()
+  end
   for _, alias in ipairs(getAliases(pageText)) do table.insert(terms, alias) end
 
   local seenTerms = {}
@@ -439,7 +403,7 @@ local function searchUnlinked(pageName, options)
                 id = rId,
                 score = r.score or 0,
                 term = term,
-                snippet = extractSnippet(line, s, e)
+                snippet = extractSnippet(line, s, e, options.contextLen)
               })
             end
           end
@@ -553,6 +517,128 @@ function widgets.unlinkedMentions(pageName)
     display = "block"
   }
 end
+
+-- ============ Commands ============
+
+-- Convert ALL unlinked mentions across the ENTIRE space
+-- (every page x every mention), with a confirmation prompt
+pcall(function()
+  command.define {
+    name = "Unlinked Mentions: Link All (Full Space)",
+    description = "Convert EVERY unlinked mention in the whole space to a wikilink (heavy operation, modifies many pages)",
+    run = function()
+      local options = config.get("unlinkedMentions")
+      if not options or not options.enabled then return end
+
+      -- List all pages in the space
+      local ok, allPages = pcall(space.listPages)
+      if not ok or not allPages then
+        editor.flashNotification("Failed to list pages")
+        return
+      end
+
+      -- Confirm: this is a heavy, space-wide operation
+      local confirmed = editor.confirm(
+        "Convert EVERY unlinked mention in the whole space to wikilinks?\n\n"
+        .. "This will scan " .. #allPages .. " page(s) and modify many of them.\n"
+        .. "It may take a while. Use with care."
+      )
+      if not confirmed then
+        editor.flashNotification("Cancelled")
+        return
+      end
+
+      local excludeFolders = options.excludeFolders or {}
+      local mentionsLinked = 0
+      local processed = 0
+      local total = #allPages
+
+      -- For each page in the space, find pages that mention it without a link
+      for _, pageMeta in ipairs(allPages) do
+        local pageName = pageMeta.name or pageMeta
+        if type(pageName) == "string"
+          and not shouldExclude(pageName, excludeFolders) then
+
+          -- 读取该页面自身的文本，保证 aliases 属于被遍历的页面
+          -- （读取失败时 selfText 为 nil，searchUnlinked 会回退到当前编辑器文本，行为安全）
+          local selfOk, selfText = pcall(space.readPage, pageName)
+          if not selfOk then selfText = nil end
+          local results = searchUnlinked(pageName, options, selfText)
+          for _, r in ipairs(results) do
+            local readOk, content = pcall(space.readPage, r.id)
+            if readOk and content then
+              local newContent, didReplace = replaceFirstMention(content, r.term, pageName)
+              if didReplace then
+                local writeOk = pcall(space.writePage, r.id, newContent)
+                if writeOk then
+                  mentionsLinked = mentionsLinked + 1
+                end
+              end
+            end
+          end
+        end
+
+        -- 每 50 页提示一次进度（轻量反馈，避免长时间无响应感）
+        processed = processed + 1
+        if processed % 50 == 0 then
+          editor.flashNotification("Full-space linking: " .. processed .. "/" .. total .. " pages scanned")
+        end
+      end
+
+      if mentionsLinked > 0 then
+        editor.flashNotification("Linked " .. mentionsLinked .. " mentions across " .. total .. " pages")
+      else
+        editor.flashNotification("No mentions could be converted")
+      end
+    end
+  }
+end)
+
+-- Convert ALL unlinked mentions on the CURRENT page (not limited by maxResults),
+-- with a confirmation prompt
+pcall(function()
+  command.define {
+    name = "Unlinked Mentions: Link All (This Page)",
+    description = "Convert every unlinked mention of the current page to a wikilink (not limited to maxResults)",
+    run = function()
+      local pageName = editor.getCurrentPage()
+      local options = config.get("unlinkedMentions")
+      if not options or not options.enabled then return end
+
+      local results = searchUnlinked(pageName, options)
+      if #results == 0 then
+        editor.flashNotification("No unlinked mentions found")
+        return
+      end
+
+      local confirmed = editor.confirm(
+        "Convert ALL " .. #results .. " unlinked mentions of this page to wikilinks?\n\n"
+        .. "This will modify " .. #results .. " page(s)."
+      )
+      if not confirmed then
+        editor.flashNotification("Cancelled")
+        return
+      end
+
+      local linked = 0
+      for _, r in ipairs(results) do
+        local ok, content = pcall(space.readPage, r.id)
+        if ok and content then
+          local newContent, didReplace = replaceFirstMention(content, r.term, pageName)
+          if didReplace then
+            pcall(space.writePage, r.id, newContent)
+            linked = linked + 1
+          end
+        end
+      end
+      if linked > 0 then
+        editor.flashNotification("Linked " .. linked .. " of " .. #results .. " mentions")
+      else
+        editor.flashNotification("No mentions could be converted")
+      end
+    end
+  }
+end)
 
 event.listen {
   name = "hooks:renderBottomWidgets",

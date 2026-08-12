@@ -61,6 +61,7 @@ config.set("unlinkedMentions", {
   maxResults = 30,         -- Maximum results to display (increase for more, e.g. 50)
   minTermLength = 2,       -- Minimum search term length (single characters are ignored to avoid noise)
   defaultOpen = true,      -- Widget expanded by default (set false to start collapsed)
+  contextLen = 100,        -- Context characters shown around each mention in the snippet
   excludeFolders = {       -- Folders to EXCLUDE — you can add any of your own folders here
     "Library/",           --   e.g. "Private/", "Work/Archive/", "Notes/Inbox/"
     "System/",
@@ -107,6 +108,19 @@ The `Link` button only replaces the **first safe occurrence** in each page. It a
 - Markdown link URLs `[text](url)`
 
 This prevents corrupting code examples, breaking existing links, or over-linking.
+
+## Commands
+
+Three ways to convert mentions, at different scopes:
+
+| Entry point | Scope | Confirmation |
+|---|---|---|
+| **Link** button (per result) | Single mention in one page | No |
+| **Link All** button (bottom of widget) | First `maxResults` (30) mentions of the current page | No |
+| Command `Unlinked Mentions: Link All (This Page)` | **All** mentions of the current page (no 30-item limit) | Yes |
+| Command `Unlinked Mentions: Link All (Full Space)` | **Every** unlinked mention across the whole space | Yes + progress feedback |
+
+Run commands from the command palette (`Ctrl-k` / `Cmd-k`). The space-wide command scans every page and shows progress every 50 pages — use it sparingly.
 
 ## License
 

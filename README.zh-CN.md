@@ -51,6 +51,7 @@ config.set("unlinkedMentions", {
   maxResults = 30,         -- 最多显示条数（想看更多可改成 50 等）
   minTermLength = 2,       -- 最短搜索词长度（单字不搜，避免噪声）
   defaultOpen = true,      -- 默认展开（false 则默认折叠）
+  contextLen = 100,        -- 每条提及前后显示的上下文字符数
   excludeFolders = {       -- 排除的目录 —— 可以把自己的目录加进来
     "Library/",            --   例如 "私密笔记/", "工作/归档/", "Notes/Inbox/"
     "System/",
@@ -95,6 +96,19 @@ config.set("unlinkedMentions.enabled", false)
 - Markdown 链接的 URL 部分 `[text](url)`
 
 避免破坏代码示例、已有链接，或过度链接。
+
+## 命令
+
+四种转正入口，范围不同：
+
+| 入口 | 范围 | 确认 |
+|---|---|---|
+| 每条结果右侧 **Link** 按钮 | 单个页面的一处提及 | 无 |
+| widget 底部 **Link All** 按钮 | 当前页前 `maxResults`（默认 30）条 | 无 |
+| 命令 `Unlinked Mentions: Link All (This Page)` | 当前页**全部**提及（不限 30 条） | 有 |
+| 命令 `Unlinked Mentions: Link All (Full Space)` | **全库**所有页面的所有提及 | 有 + 进度提示 |
+
+命令在命令面板运行（`Ctrl-k` / `Cmd-k`）。全库命令会扫描每个页面，每 50 页提示一次进度——请谨慎使用。
 
 ## 已知限制
 
