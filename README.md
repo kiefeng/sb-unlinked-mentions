@@ -23,9 +23,10 @@ Each result includes:
 - 🏷️ **Alias support** — reads `aliases` from frontmatter, preserves original text with `[[page|alias]]` syntax
 - 🚫 **Tag exclusion** — `#hashtag` mentions are never treated as unlinked mentions or converted
 - 📂 **Folder exclusion** — ignores Library/, System/, template/ by default
-- 📁 **Collapsible** — native `<details>` element, defaults to expanded
+- 📁 **Collapsible** — click the heading to expand/collapse (arrow hidden for visual consistency with Linked Mentions)
 - 🌏 **Chinese search** — works best with the [silversearch-chinese-tokenizer](https://github.com/LelouchHe/silversearch-chinese-tokenizer)
 - 🪶 **Zero build** — pure Space Lua, no compilation needed
+- 🔤 **Pure-text snippets** — context excerpts are rendered as plain text via the official markdown parser, so `# headings`, `**bold**`, `[[links]]` in the source never leak into the preview
 
 ## Requirements
 
