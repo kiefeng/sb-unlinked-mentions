@@ -55,7 +55,7 @@ If you use the [Configuration Manager](https://silverbullet.md/Library%20Manager
 You can customize the widget in your `CONFIG` page:
 
 ```space-lua
-config.set("std.widgets.unlinkedMentions", {
+config.set("unlinkedMentions", {
   enabled = true,
   maxResults = 30,         -- Maximum results to display
   minTermLength = 2,       -- Minimum search term length (single characters are ignored)
@@ -71,7 +71,7 @@ config.set("std.widgets.unlinkedMentions", {
 
 To disable:
 ```space-lua
-config.set("std.widgets.unlinkedMentions.enabled", false)
+config.set("unlinkedMentions.enabled", false)
 ```
 
 ## How it works

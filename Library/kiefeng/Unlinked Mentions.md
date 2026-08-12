@@ -8,118 +8,77 @@ share.mode: pull
 # Unlinked Mentions Widget
 
 ```space-style
-.sb-unlinked {
-  margin-top: 1rem;
-  border-top: 1px solid var(--ui-accent-color, #888);
-  padding-top: 0.5rem;
-}
-.sb-unlinked-summary {
+.sb-unlinked summary {
   cursor: pointer;
-  font-weight: bold;
-  font-size: 1.1em;
   user-select: none;
-  padding: 4px 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 .sb-unlinked-count {
   font-weight: normal;
-  font-size: 0.85em;
   opacity: 0.6;
 }
 .sb-unlinked-list {
-  padding-top: 0.4rem;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  padding-top: 0.25rem;
 }
 .sb-unlinked-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  font-size: 0.95em;
-  padding: 2px 0;
-}
-.sb-unlinked-item-body {
-  flex: 1;
-  min-width: 0;
+  padding: 1px 0;
 }
 .sb-unlinked-item-head {
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.sb-unlinked-link-one {
-  flex-shrink: 0;
-  font-size: 0.8em;
-  padding: 1px 8px;
-  border: 1px solid var(--ui-accent-color, #888);
-  border-radius: 3px;
-  background: transparent;
-  color: var(--ui-accent-color, #888);
-  cursor: pointer;
-  opacity: 0.4;
-  transition: opacity 0.15s;
-}
-.sb-unlinked-link-one:hover {
-  opacity: 1;
-}
 .sb-unlinked-link {
   cursor: pointer;
-  color: var(--ui-link-color, var(--ui-accent-color, #58a6ff));
+  color: var(--ui-link-color);
   text-decoration: none;
 }
 .sb-unlinked-link:hover {
   text-decoration: underline;
 }
 .sb-unlinked-term {
-  font-size: 0.85em;
   opacity: 0.55;
+  font-size: 0.9em;
+}
+.sb-unlinked-link-one {
+  font-size: 0.8em;
+  padding: 0 4px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  color: var(--ui-accent-color);
+  opacity: 0.4;
+}
+.sb-unlinked-link-one:hover {
+  opacity: 1;
+  text-decoration: underline;
 }
 .sb-unlinked-excerpt {
   font-size: 0.85em;
   opacity: 0.5;
-  border-left: 2px solid var(--ui-accent-color, #888);
-  padding: 1px 0 1px 8px;
-  margin-top: 2px;
+  padding-left: 8px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .sb-unlinked-actions {
-  display: flex;
-  gap: 8px;
-  padding-top: 8px;
-  margin-top: 4px;
+  padding-top: 4px;
 }
 .sb-unlinked-btn {
   font-size: 0.85em;
-  padding: 3px 12px;
-  border: 1px solid var(--ui-accent-color, #888);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--ui-accent-color, #888);
+  padding: 2px 8px;
   cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.15s;
+  background: none;
+  border: 1px solid var(--ui-accent-color);
+  border-radius: 3px;
+  color: var(--ui-accent-color);
+  opacity: 0.6;
 }
 .sb-unlinked-btn:hover {
-  opacity: 1;
-}
-.sb-unlinked-btn-primary {
-  background: var(--ui-accent-color, #888);
-  color: var(--ui-background-color, #fff);
-  border-color: var(--ui-accent-color, #888);
-  opacity: 0.85;
-}
-.sb-unlinked-btn-primary:hover {
   opacity: 1;
 }
 .sb-unlinked-more {
   font-size: 0.85em;
   opacity: 0.5;
-  padding-top: 4px;
 }
 ```
 
@@ -127,8 +86,8 @@ share.mode: pull
 -- priority: 10
 widgets = widgets or {}
 
--- ============ 配置 ============
-config.define("std.widgets.unlinkedMentions", {
+-- ============ Configuration ============
+config.define("unlinkedMentions", {
   type = "object",
   properties = {
     enabled = schema.boolean(),
@@ -139,7 +98,7 @@ config.define("std.widgets.unlinkedMentions", {
   }
 })
 
-config.set("std.widgets.unlinkedMentions", {
+config.set("unlinkedMentions", {
   enabled = true,
   maxResults = 30,
   minTermLength = 2,
@@ -147,7 +106,7 @@ config.set("std.widgets.unlinkedMentions", {
   excludeFolders = {"Library/", "System/", "template/", "Template/"}
 })
 
--- ============ 基础工具 ============
+-- ============ Helpers ============
 
 local function startsWith(str, prefix)
   return string.sub(str, 1, #prefix) == prefix
@@ -191,28 +150,28 @@ local function getAliases(pageText)
   return terms
 end
 
--- ============ 安全位置检测 ============
+-- ============ Safe position detection ============
 
--- 判断某行中 startPos 位置是否是安全的纯文本区域
--- 安全 = 不在双链内、不在行内代码内、不在 Markdown 链接 URL 内、不是标签（# 前缀）
+-- Returns true if the character at startPos is in safe plain text
+-- (not inside a wikilink, inline code, markdown link URL, or hashtag)
 local function isSafePosition(line, startPos)
   local before = string.sub(line, 1, startPos - 1)
 
-  -- 前面紧跟 # 说明是标签，不算纯文本提及
+  -- Preceded by # means it's a hashtag, not a plain text mention
   if #before > 0 and string.sub(before, -1) == "#" then
     return false
   end
 
-  -- 在 [[...]] 内
+  -- Inside [[...]]
   local openCount = select(2, string.gsub(before, "%[%[", ""))
   local closeCount = select(2, string.gsub(before, "%]%]", ""))
   if openCount > closeCount then return false end
 
-  -- 在行内代码内（反引号未配对）
+  -- Inside inline code (unpaired backtick)
   local backtickCount = select(2, string.gsub(before, "`", ""))
   if backtickCount % 2 == 1 then return false end
 
-  -- 在 Markdown 链接的 URL 部分 [text](url)
+  -- Inside markdown link URL [text](url)
   local lastOpenParen = string.find(before, "%([^%)]*$")
   if lastOpenParen then
     local beforeParen = string.sub(before, 1, lastOpenParen - 1)
@@ -222,18 +181,14 @@ local function isSafePosition(line, startPos)
   return true
 end
 
--- 在全文中查找第一处安全的 term 出现，返回 (lineText, lineNum, startPos, endPos)
--- 跳过 frontmatter 和代码块
+-- Find the first safe mention of term in content, skipping frontmatter and code blocks
 local function findFirstSafeMention(content, term)
   local termLower = string.lower(term)
   local inFrontmatter = false
   local frontmatterDone = false
   local inCodeBlock = false
-  local lineNum = 0
 
   for line in string.gmatch(content, "([^\r\n]*)\r?\n?") do
-    lineNum = lineNum + 1
-
     if not frontmatterDone and string.match(line, "^---%s*$") then
       inFrontmatter = not inFrontmatter
       if not inFrontmatter then frontmatterDone = true end
@@ -245,21 +200,21 @@ local function findFirstSafeMention(content, term)
       local lineLower = string.lower(line)
       local searchPos = 1
       while true do
-        local s, e = string.find(lineLower, termLower, searchPos, true)
+        local s = string.find(lineLower, termLower, searchPos, true)
         if not s then break end
         if isSafePosition(line, s) then
-          return line, lineNum, s, e
+          return line
         end
-        searchPos = e + 1
+        searchPos = s + #term
       end
     end
   end
   return nil
 end
 
--- ============ 文本替换 ============
+-- ============ Text replacement ============
 
--- 将 content 中第一处安全的 term 替换为双链
+-- Replace the first safe mention of term with a wikilink
 local function replaceFirstMention(content, term, targetPage)
   local lines = {}
   local inFrontmatter = false
@@ -318,31 +273,31 @@ local function replaceFirstMention(content, term, targetPage)
   return table.concat(lines, "\n"), replaced
 end
 
--- 对单个页面执行转正
+-- Convert a single page's first safe mention
 local function linkMention(sourcePage, targetPage, term)
   local ok, content = pcall(space.readPage, sourcePage)
   if not ok or not content then
-    editor.flashNotification("无法读取页面: " .. sourcePage)
+    editor.flashNotification("Failed to read page: " .. sourcePage)
     return false
   end
 
   local newContent, didReplace = replaceFirstMention(content, term, targetPage)
   if not didReplace then
-    editor.flashNotification("未找到可安全替换的提及")
+    editor.flashNotification("No safe mention found to convert")
     return false
   end
 
   local writeOk = pcall(space.writePage, sourcePage, newContent)
   if not writeOk then
-    editor.flashNotification("写入失败: " .. sourcePage)
+    editor.flashNotification("Failed to write: " .. sourcePage)
     return false
   end
 
-  editor.flashNotification("已链接: " .. sourcePage)
+  editor.flashNotification("Linked: " .. sourcePage)
   return true
 end
 
--- 批量转正
+-- Batch convert
 local function linkMentions(resultList, targetPage)
   local linked = 0
   for _, r in ipairs(resultList) do
@@ -356,13 +311,13 @@ local function linkMentions(resultList, targetPage)
     end
   end
   if linked > 0 then
-    editor.flashNotification("已将 " .. linked .. " 处提及转为双链")
+    editor.flashNotification("Converted " .. linked .. " mentions to wikilinks")
   else
-    editor.flashNotification("没有可转换的提及")
+    editor.flashNotification("No mentions to convert")
   end
 end
 
--- ============ 搜索逻辑 ============
+-- ============ Search ============
 
 local function searchUnlinked(pageName, options)
   local minTermLength = options.minTermLength or 2
@@ -383,7 +338,7 @@ local function searchUnlinked(pageName, options)
   end
   if #validTerms == 0 then return {} end
 
-  -- 已链接的页面集合
+  -- Already-linked pages (shown in Linked Mentions)
   local linkedSet = {}
   local linkedMentions = query[[
     from l = index.tag "link"
@@ -412,10 +367,10 @@ local function searchUnlinked(pageName, options)
           and not seenPages[rId]
           and not shouldExclude(rId, excludeFolders) then
 
-          -- 用 findFirstSafeMention 验证：
-          -- 1) 排除标签（# 前缀）
-          -- 2) 排除代码块/frontmatter
-          -- 3) 排除已有双链内
+          -- Verify with findFirstSafeMention:
+          -- 1) Exclude hashtags (# prefix)
+          -- 2) Exclude code blocks / frontmatter
+          -- 3) Exclude text inside existing wikilinks
           local readOk, pageContent = pcall(space.readPage, rId)
           if readOk and pageContent then
             local safeLine = findFirstSafeMention(pageContent, term)
@@ -440,12 +395,19 @@ local function searchUnlinked(pageName, options)
   return results
 end
 
--- ============ 渲染 ============
+-- ============ Render ============
 
 function widgets.unlinkedMentions(pageName)
   pageName = pageName or editor.getCurrentPage()
-  local options = config.get("std.widgets.unlinkedMentions")
+  local options = config.get("unlinkedMentions")
   if not options or not options.enabled then return nil end
+
+  local excludeFolders = options.excludeFolders or {}
+
+  -- Don't render on excluded pages (Library, System, templates, etc.)
+  if shouldExclude(pageName, excludeFolders) then
+    return nil
+  end
 
   local results = searchUnlinked(pageName, options)
   if #results == 0 then return nil end
@@ -477,10 +439,10 @@ function widgets.unlinkedMentions(pageName)
       })
     end
 
-    -- 单条转正按钮
+    -- Per-item convert button
     table.insert(headChildren, dom.button {
       class = "sb-unlinked-link-one",
-      title = "将此页第一处提及转为双链",
+      title = "Convert first safe mention to wikilink",
       onclick = function() linkMention(r.id, pageName, r.term) end,
       "Link"
     })
@@ -519,16 +481,16 @@ function widgets.unlinkedMentions(pageName)
   if hiddenCount > 0 then
     table.insert(itemNodes, dom.div {
       class = "sb-unlinked-more",
-      "...还有 " .. hiddenCount .. " 条"
+      "...and " .. hiddenCount .. " more"
     })
   end
 
-  -- 一键转全部
+  -- Link all button
   table.insert(itemNodes, dom.div {
     class = "sb-unlinked-actions",
     dom.button {
-      class = "sb-unlinked-btn sb-unlinked-btn-primary",
-      title = "将所有可见结果的第一处提及转为双链",
+      class = "sb-unlinked-btn",
+      title = "Convert all visible mentions to wikilinks",
       onclick = function() linkMentions(visibleResults, pageName) end,
       "Link All (" .. visible .. ")"
     }
@@ -539,8 +501,7 @@ function widgets.unlinkedMentions(pageName)
       class = "sb-unlinked",
       open = defaultOpen,
       dom.summary {
-        class = "sb-unlinked-summary",
-        "Unlinked Mentions",
+        "Unlinked Mentions ",
         dom.span { class = "sb-unlinked-count", "(" .. #results .. ")" }
       },
       dom.div {
@@ -552,12 +513,12 @@ function widgets.unlinkedMentions(pageName)
   }
 end
 
--- ============ 挂载 ============
+-- ============ Mount ============
 
 event.listen {
   name = "hooks:renderBottomWidgets",
   run = function()
-    local enabled = config.get("std.widgets.unlinkedMentions.enabled")
+    local enabled = config.get("unlinkedMentions.enabled")
     if enabled ~= false then
       return widgets.unlinkedMentions()
     end
@@ -565,10 +526,10 @@ event.listen {
 }
 ```
 
-## 配置
+## Configuration
 
 ```space-lua
-config.set("std.widgets.unlinkedMentions", {
+config.set("unlinkedMentions", {
   enabled = true,
   maxResults = 30,
   minTermLength = 2,
@@ -576,12 +537,3 @@ config.set("std.widgets.unlinkedMentions", {
   excludeFolders = {"Library/", "System/", "template/", "Template/"}
 })
 ```
-
-## 功能说明
-
-- **折叠**：点击标题栏展开/收起
-- **单条转换**：每条结果右侧的 Link 按钮只转该页
-- **一键全转**：底部 Link All 按钮转换所有可见结果
-- **标签排除**：`#标签` 中的页面名不会被识别为未链接提及，也不会被转换
-- **安全替换**：跳过 frontmatter、代码块、行内代码、已有双链、Markdown 链接 URL
-- **别名支持**：命中别名时替换为 `[[真实页面名|别名原文]]`

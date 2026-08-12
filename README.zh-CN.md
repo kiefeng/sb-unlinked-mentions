@@ -45,7 +45,7 @@
 在 `CONFIG` 页面中可自定义：
 
 ```space-lua
-config.set("std.widgets.unlinkedMentions", {
+config.set("unlinkedMentions", {
   enabled = true,          -- 是否启用
   maxResults = 30,         -- 最多显示条数
   minTermLength = 2,       -- 最短搜索词长度（单字不搜，避免噪声）
@@ -61,7 +61,7 @@ config.set("std.widgets.unlinkedMentions", {
 
 关闭插件：
 ```space-lua
-config.set("std.widgets.unlinkedMentions.enabled", false)
+config.set("unlinkedMentions.enabled", false)
 ```
 
 ## 工作原理
