@@ -129,6 +129,54 @@ config.set("unlinkedMentions", {
   excludeFolders = {"Library/", "System/", "template/", "Template/"}
 })
 
+-- ============ Commands ============
+
+-- Convert ALL unlinked mentions on the current page (not limited by maxResults)
+-- with a confirmation prompt, since this modifies multiple pages at once
+pcall(function()
+  command.define {
+    name = "Unlinked Mentions: Link All",
+    description = "Convert every unlinked mention on this page to a wikilink (modifies multiple pages)",
+    run = function()
+      local pageName = editor.getCurrentPage()
+      local options = config.get("unlinkedMentions")
+      if not options or not options.enabled then return end
+
+      local results = searchUnlinked(pageName, options)
+      if #results == 0 then
+        editor.flashNotification("No unlinked mentions found")
+        return
+      end
+
+      -- Confirm before bulk-modifying pages
+      local confirmed = editor.confirm(
+        "Convert ALL " .. #results .. " unlinked mentions to wikilinks?\n\nThis will modify " .. #results .. " page(s). Use with care."
+      )
+      if not confirmed then
+        editor.flashNotification("Cancelled")
+        return
+      end
+
+      local linked = 0
+      for _, r in ipairs(results) do
+        local ok, content = pcall(space.readPage, r.id)
+        if ok and content then
+          local newContent, didReplace = replaceFirstMention(content, r.term, pageName)
+          if didReplace then
+            pcall(space.writePage, r.id, newContent)
+            linked = linked + 1
+          end
+        end
+      end
+      if linked > 0 then
+        editor.flashNotification("Converted " .. linked .. " of " .. #results .. " mentions")
+      else
+        editor.flashNotification("No mentions could be converted")
+      end
+    end
+  }
+end)
+
 -- ============ Helpers ============
 
 local function startsWith(str, prefix)
