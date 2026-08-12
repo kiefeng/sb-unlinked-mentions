@@ -2,7 +2,7 @@
 
 一个 [SilverBullet](https://silverbullet.md) 插件：在页面底部显示**未链接提及**（在其他页面中以纯文本出现、但没有 `[[双链]]` 指向当前页面的引用），类似 Obsidian 的 Unlinked Mentions 面板，并支持一键转换为真正的双链。
 
-> **English version**: [README.md](README.md)
+> **English version**: [README.md](README.md) · **更新日志**: [CHANGELOG.md](CHANGELOG.md)
 
 ## 功能
 

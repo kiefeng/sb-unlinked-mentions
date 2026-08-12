@@ -2,7 +2,7 @@
 
 A [SilverBullet](https://silverbullet.md) plug that displays **unlinked mentions** (also known as "potential links" or "linked references without links") at the bottom of your pages, similar to Obsidian's Unlinked Mentions panel.
 
-> **中文版**: [README.zh-CN.md](README.zh-CN.md)
+> **中文版**: [README.zh-CN.md](README.zh-CN.md) · **更新日志**: [CHANGELOG.md](CHANGELOG.md)
 
 ## What it does
 
