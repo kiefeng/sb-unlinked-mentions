@@ -53,16 +53,16 @@ If you use the [Configuration Manager](https://silverbullet.md/Library%20Manager
 
 ## Configuration
 
-You can customize the widget in your `CONFIG` page:
+You can customize the widget in your `CONFIG` page. **All of the options below are user-configurable — you can change them in your own space without touching the plug code.**
 
 ```space-lua
 config.set("unlinkedMentions", {
-  enabled = true,
-  maxResults = 30,         -- Maximum results to display
-  minTermLength = 2,       -- Minimum search term length (single characters are ignored)
-  defaultOpen = true,      -- Expand the section by default (set false to collapse)
-  excludeFolders = {       -- Folders to exclude from search
-    "Library/",
+  enabled = true,          -- Set to false to disable the widget entirely
+  maxResults = 30,         -- Maximum results to display (increase for more, e.g. 50)
+  minTermLength = 2,       -- Minimum search term length (single characters are ignored to avoid noise)
+  defaultOpen = true,      -- Widget expanded by default (set false to start collapsed)
+  excludeFolders = {       -- Folders to EXCLUDE — you can add any of your own folders here
+    "Library/",           --   e.g. "Private/", "Work/Archive/", "Notes/Inbox/"
     "System/",
     "template/",
     "Template/"
@@ -70,8 +70,19 @@ config.set("unlinkedMentions", {
 })
 ```
 
-To disable:
+**`excludeFolders` works both ways:**
+- Pages inside excluded folders **won't appear** in the mention list on other pages
+- The widget **won't render** on pages that are inside excluded folders
+- **Add your own folders** to the list to keep them out of mention discovery entirely
+
+You can also change individual values without rewriting the whole config:
+
 ```space-lua
+-- Show more results
+config.set("unlinkedMentions.maxResults", 50)
+-- Start collapsed
+config.set("unlinkedMentions.defaultOpen", false)
+-- Disable the widget
 config.set("unlinkedMentions.enabled", false)
 ```
 

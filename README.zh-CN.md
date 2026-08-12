@@ -43,16 +43,16 @@
 
 ## 配置
 
-在 `CONFIG` 页面中可自定义：
+在 `CONFIG` 页面中可自定义。**以下所有选项都可以直接改——无需动插件代码**：
 
 ```space-lua
 config.set("unlinkedMentions", {
-  enabled = true,          -- 是否启用
-  maxResults = 30,         -- 最多显示条数
+  enabled = true,          -- 设为 false 完全禁用
+  maxResults = 30,         -- 最多显示条数（想看更多可改成 50 等）
   minTermLength = 2,       -- 最短搜索词长度（单字不搜，避免噪声）
   defaultOpen = true,      -- 默认展开（false 则默认折叠）
-  excludeFolders = {       -- 排除的目录
-    "Library/",
+  excludeFolders = {       -- 排除的目录 —— 可以把自己的目录加进来
+    "Library/",            --   例如 "私密笔记/", "工作/归档/", "Notes/Inbox/"
     "System/",
     "template/",
     "Template/"
@@ -60,8 +60,19 @@ config.set("unlinkedMentions", {
 })
 ```
 
-关闭插件：
+**`excludeFolders` 双向生效：**
+- 排除目录里的页面**不会出现**在其他页面的提及列表里
+- 当前页面属于排除目录时，widget **不渲染**
+- **把自己的目录加进列表**，即可让这些目录完全不被提及搜索发现
+
+也可以单独改某一项，不用重写整个配置：
+
 ```space-lua
+-- 显示更多结果
+config.set("unlinkedMentions.maxResults", 50)
+-- 默认折叠
+config.set("unlinkedMentions.defaultOpen", false)
+-- 禁用插件
 config.set("unlinkedMentions.enabled", false)
 ```
 
