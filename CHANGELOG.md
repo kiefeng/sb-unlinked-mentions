@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 
 - Nothing yet.
 
+## [0.6.1] - 2026-08-18
+
+### Fixed
+- **`share.uri` used the `ghr:` scheme pointing at a non-existent release** — the repo has no GitHub releases, so update pulls failed with a 404. Switched to a plain `https://` blob URL (pull mode works against repository files).
+- **Config example blocks used `space-lua` fences** — SilverBullet executes any `space-lua` block when a page (including a documentation page) is loaded, so the "disable the widget" example in the docs could silently set `unlinkedMentions.enabled = false`. Example blocks now use a plain `lua` fence and are documentation-only.
+
 ## [0.6.0] - 2026-08-12
 
 ### Added
