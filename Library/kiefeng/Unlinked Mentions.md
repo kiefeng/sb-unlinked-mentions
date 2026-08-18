@@ -1,7 +1,7 @@
 ---
 name: Library/kiefeng/Unlinked Mentions
 tags: meta/library
-share.uri: "ghr:kiefeng/sb-unlinked-mentions@main/Library/kiefeng/Unlinked Mentions.md"
+share.uri: "https://github.com/kiefeng/sb-unlinked-mentions/blob/main/Library/kiefeng/Unlinked Mentions.md"
 share.mode: pull
 ---
 
@@ -653,7 +653,7 @@ event.listen {
 
 ## Configuration
 
-```space-lua
+```lua
 config.set("unlinkedMentions", {
   enabled = true,
   maxResults = 30,

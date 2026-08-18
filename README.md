@@ -55,7 +55,7 @@ If you use the [Configuration Manager](https://silverbullet.md/Library%20Manager
 
 You can customize the widget in your `CONFIG` page. **All of the options below are user-configurable — you can change them in your own space without touching the plug code.**
 
-```space-lua
+```lua
 config.set("unlinkedMentions", {
   enabled = true,          -- Set to false to disable the widget entirely
   maxResults = 30,         -- Maximum results to display (increase for more, e.g. 50)
@@ -78,7 +78,7 @@ config.set("unlinkedMentions", {
 
 You can also change individual values without rewriting the whole config:
 
-```space-lua
+```lua
 -- Show more results
 config.set("unlinkedMentions.maxResults", 50)
 -- Start collapsed

@@ -45,7 +45,7 @@
 
 在 `CONFIG` 页面中可自定义。**以下所有选项都可以直接改——无需动插件代码**：
 
-```space-lua
+```lua
 config.set("unlinkedMentions", {
   enabled = true,          -- 设为 false 完全禁用
   maxResults = 30,         -- 最多显示条数（想看更多可改成 50 等）
@@ -68,7 +68,7 @@ config.set("unlinkedMentions", {
 
 也可以单独改某一项，不用重写整个配置：
 
-```space-lua
+```lua
 -- 显示更多结果
 config.set("unlinkedMentions.maxResults", 50)
 -- 默认折叠
